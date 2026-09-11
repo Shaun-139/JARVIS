@@ -201,16 +201,20 @@ for `backend/`. Deploy the backend first; the frontend build needs its URL.
 [`render.yaml`](render.yaml) (Node runtime, `npm install`, `npm start`, health
 check `/api/health`). In the dashboard set the secrets marked `sync: false`
 there — at minimum `GROQ_API_KEY`; add `OPENROUTER_API_KEY` / `GEMINI_API_KEY`
-for those providers. Local Ollama can't be reached from a Render service — that
-provider just shows not-ready in production. Note the service URL (e.g.
+for those providers. Local Ollama can't be reached from a Render service — the
+model dropdown still shows it as ready (readiness only checks that it's
+configured, not that it's reachable), but a request to it will error; pick a
+cloud provider in production. Note the service URL (e.g.
 `https://jarvis-backend.onrender.com`).
 
-**Vercel (`frontend/`)** — New Project → import this repo. It picks up
-[`vercel.json`](vercel.json) (`npm install`, `npm run build`, output
-`frontend/dist`). Add one env var (Production, and Preview if you want preview
-deploys to talk to the same backend): `VITE_API_BASE` = the Render URL from
-above, no trailing slash. Deploy, then note the resulting `https://….vercel.app`
-URL.
+**Vercel (`frontend/`)** — New Project → import this repo. Vercel will offer
+`frontend/` and `backend/` as separate deployable directories (it's an npm
+workspaces monorepo) — pick **`frontend`** only; that sets the project's Root
+Directory and lets Vercel zero-config-detect Vite from
+`frontend/vite.config.ts` (`npm install`, `npm run build`, output `dist`). Add
+one env var (Production, and Preview if you want preview deploys to talk to
+the same backend): `VITE_API_BASE` = the Render URL from above, no trailing
+slash. Deploy, then note the resulting `https://….vercel.app` URL.
 
 **Close the loop** — back in Render, set `CORS_ORIGIN` to that Vercel URL and
 save (the service restarts automatically); without it the backend reflects any
