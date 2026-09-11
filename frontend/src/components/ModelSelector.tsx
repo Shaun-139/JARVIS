@@ -127,6 +127,7 @@ export default function ModelSelector({ value, onChange, status }: ModelSelector
 
       <div
         ref={panelRef}
+        data-boot-skip
         className="hud-panel absolute left-0 right-0 top-[calc(100%+8px)] origin-top space-y-1 bg-slate-950/90 p-2 opacity-0"
         style={{ pointerEvents: 'none' }}
         role="listbox"

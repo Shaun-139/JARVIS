@@ -42,10 +42,12 @@ for (const file of ['.env.local', '.env']) {
 }
 
 /* ------------------------------- config -------------------------------- */
-// Prefer the platform-assigned PORT (Render, etc.) so the health check can
-// find us; fall back to API_PORT for local dev, where API_PORT stays
-// deliberately distinct from the web dev server's own port.
-const PORT = Number(process.env.PORT || process.env.API_PORT || process.env.TALKAI_API_PORT || 8787);
+// An explicit API_PORT (set in .env.local for local dev, where it must stay
+// distinct from the web dev server's own port) always wins. Otherwise fall
+// back to the platform-assigned PORT (Render, etc.) so the health check can
+// find us — this only applies in a hosting context, since a local dev
+// harness may also inject a generic PORT meant for the *web* process.
+const PORT = Number(process.env.API_PORT || process.env.PORT || process.env.TALKAI_API_PORT || 8787);
 
 /**
  * Chat providers. All four expose an OpenAI-compatible streaming

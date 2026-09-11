@@ -130,8 +130,11 @@ export default function App() {
 
   // Boot sweep — stagger the glass panels in once. Guarded so React StrictMode's
   // double-invoke (and any cleanup mid-flight) can never leave a panel hidden.
+  // [data-boot-skip] excludes panels with their own show/hide animation (e.g.
+  // ModelSelector's dropdown) — sweeping those in would force them visible
+  // regardless of open state, and permanently, since this only ever runs once.
   useEffect(() => {
-    const panels = shellRef.current?.querySelectorAll('.hud-panel');
+    const panels = shellRef.current?.querySelectorAll('.hud-panel:not([data-boot-skip])');
     if (!panels || !panels.length) return;
 
     if (bootedRef.current) {

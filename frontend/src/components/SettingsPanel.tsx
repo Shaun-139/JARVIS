@@ -62,9 +62,18 @@ export interface SettingsPanelProps {
   defaultPersona?: string;
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+  className = '',
+}: {
+  title: string;
+  children: React.ReactNode;
+  /** Extra classes on the wrapper — e.g. a stacking-context escape for a section with a popover. */
+  className?: string;
+}) {
   return (
-    <div className="settings-row flex flex-col gap-2 opacity-0">
+    <div className={`settings-row flex flex-col gap-2 opacity-0 ${className}`}>
       <span className="hud-label border-b border-arc-cyan/15 pb-1">{title}</span>
       {children}
     </div>
@@ -230,7 +239,12 @@ export default function SettingsPanel({
       </div>
 
       {/* ---- Model ---- */}
-      <Section title="Model">
+      {/* relative z-20: ModelSelector's dropdown must out-rank the sections
+          below it. Each .settings-row is its own stacking context (a lingering
+          post-animation `transform` on it triggers that), so z-index set only
+          on ModelSelector's own root is trapped inside this section and can
+          never beat a later sibling section — it has to be set here instead. */}
+      <Section title="Model" className="relative z-20">
         <ModelSelector
           value={settings.provider}
           onChange={(provider) => onChange({ provider })}
