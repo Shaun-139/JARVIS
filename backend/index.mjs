@@ -75,7 +75,7 @@ const CHAT_PROVIDERS = {
     baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
     envVar: 'GEMINI_API_KEY',
     apiKey: () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '',
-    defaultModel: () => process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+    defaultModel: () => process.env.GEMINI_MODEL || 'gemini-flash-latest',
     local: false,
   },
   ollama: {

@@ -28,7 +28,7 @@ export interface Provider {
 export const PROVIDERS: Provider[] = [
   { id: 'groq', label: 'Groq', model: 'openai/gpt-oss-20b', hint: 'LPU · ultra-low latency', local: false },
   { id: 'openrouter', label: 'OpenRouter', model: 'openrouter/auto', hint: 'Unified model router', local: false },
-  { id: 'gemini', label: 'Gemini', model: 'gemini-2.0-flash', hint: 'Google multimodal', local: false },
+  { id: 'gemini', label: 'Gemini', model: 'gemini-flash-latest', hint: 'Google multimodal', local: false },
   { id: 'ollama', label: 'Local Ollama', model: 'llama3.2:3b', hint: 'On-device · private', local: true },
 ];
 
