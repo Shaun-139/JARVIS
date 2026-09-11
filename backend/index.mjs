@@ -170,7 +170,7 @@ app.use((req, res, next) => {
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Filename');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Filename, X-App-Password');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
@@ -178,7 +178,23 @@ app.use((req, res, next) => {
 const jsonBody = express.json({ limit: '1mb' });
 const rawAudioBody = express.raw({ type: () => true, limit: '25mb' });
 
-app.get('/api/health', (_req, res) => {
+/**
+ * Optional whole-app password gate — a separate concern from AGENT_TOKEN
+ * above (that's for backend/agent.mjs specifically). Unset ⇒ no gate, fully
+ * open (today's default). The browser sends it as X-App-Password on normal
+ * requests; /api/metrics is the one exception, since EventSource can't set
+ * custom headers, so the frontend passes it as a ?pw= query param there.
+ */
+const APP_PASSWORD = process.env.APP_PASSWORD || '';
+
+function requireAppPassword(req, res, next) {
+  if (!APP_PASSWORD) return next();
+  const supplied = req.get('x-app-password') || req.query.pw || '';
+  if (supplied === APP_PASSWORD) return next();
+  res.status(401).json({ error: 'password required' });
+}
+
+app.get('/api/health', requireAppPassword, (_req, res) => {
   const providers = Object.fromEntries(
     Object.entries(CHAT_PROVIDERS).map(([id, p]) => [
       id,
@@ -257,7 +273,7 @@ async function fetchProviderModels(id) {
   }
 }
 
-app.get('/api/models', async (_req, res) => {
+app.get('/api/models', requireAppPassword, async (_req, res) => {
   if (Date.now() - modelsCache.ts < 60_000 && Object.keys(modelsCache.data).length) {
     return res.json(modelsCache.data);
   }
@@ -271,7 +287,7 @@ app.get('/api/models', async (_req, res) => {
 });
 
 /* Live host CPU / RAM — one SSE frame per sample. */
-app.get('/api/metrics', (req, res) => {
+app.get('/api/metrics', requireAppPassword, (req, res) => {
   const sse = openSSE(res);
   sse.send(currentHostMetrics());
   const id = setInterval(() => sse.send(currentHostMetrics()), 1500);
@@ -326,7 +342,7 @@ function streamMock(sse, ac) {
   setTimeout(tick, 250);
 }
 
-app.post('/api/chat', jsonBody, async (req, res) => {
+app.post('/api/chat', requireAppPassword, jsonBody, async (req, res) => {
   const { messages = [], temperature = 0.6, model, provider, system } = req.body ?? {};
   const sysPrompt =
     typeof system === 'string' && system.trim() ? system.trim().slice(0, 4000) : SYSTEM_PROMPT;
@@ -447,7 +463,7 @@ app.post('/api/chat', jsonBody, async (req, res) => {
 });
 
 /* ----------------------- speech-to-text (Whisper) --------------------- */
-app.post('/api/transcribe', rawAudioBody, async (req, res) => {
+app.post('/api/transcribe', requireAppPassword, rawAudioBody, async (req, res) => {
   if (!GROQ_LIVE) {
     res.json({ text: '', mode: 'mock', note: 'no GROQ_API_KEY — transcription disabled' });
     return;
@@ -483,7 +499,7 @@ app.post('/api/transcribe', rawAudioBody, async (req, res) => {
 });
 
 /* ----------------------- text-to-speech (Orpheus) -------------------- */
-app.post('/api/speak', jsonBody, async (req, res) => {
+app.post('/api/speak', requireAppPassword, jsonBody, async (req, res) => {
   const { text = '', voice } = req.body ?? {};
   if (!GROQ_LIVE || !TTS_ENABLED) {
     res.json({ fallback: true, reason: GROQ_LIVE ? 'GROQ_TTS_ENABLED is not 1' : 'no GROQ_API_KEY' });

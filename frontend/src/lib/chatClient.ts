@@ -8,6 +8,7 @@
  */
 
 import type { ChatMessageModel } from '../types';
+import { authHeaders } from './appAuth';
 
 export type ChatMode = 'live' | 'mock';
 
@@ -54,7 +55,7 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
 export async function getHealth(signal?: AbortSignal): Promise<HealthInfo | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/health`, { signal });
+    const res = await fetch(`${API_BASE}/api/health`, { signal, headers: authHeaders() });
     if (!res.ok) return null;
     return (await res.json()) as HealthInfo;
   } catch {
@@ -65,7 +66,7 @@ export async function getHealth(signal?: AbortSignal): Promise<HealthInfo | null
 /** `{ providerId: string[] }` — model ids per configured provider. */
 export async function getModels(signal?: AbortSignal): Promise<Record<string, string[]>> {
   try {
-    const res = await fetch(`${API_BASE}/api/models`, { signal });
+    const res = await fetch(`${API_BASE}/api/models`, { signal, headers: authHeaders() });
     if (!res.ok) return {};
     return (await res.json()) as Record<string, string[]>;
   } catch {
@@ -76,7 +77,7 @@ export async function getModels(signal?: AbortSignal): Promise<Record<string, st
 export async function streamChat(opts: StreamChatOptions): Promise<string> {
   const res = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({
       messages: opts.messages,
       model: opts.model,

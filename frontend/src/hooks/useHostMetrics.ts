@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { withAuthQuery } from '../lib/appAuth';
 
 export interface HostMetrics {
   /** Whole-machine CPU utilisation, %. */
@@ -34,7 +35,7 @@ export function useHostMetrics(): { metrics: HostMetrics | null; connected: bool
   const staleTimer = useRef<number>(0);
 
   useEffect(() => {
-    const es = new EventSource(`${API_BASE}/api/metrics`);
+    const es = new EventSource(withAuthQuery(`${API_BASE}/api/metrics`));
 
     const markStale = () => {
       window.clearTimeout(staleTimer.current);

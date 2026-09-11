@@ -40,3 +40,8 @@ services:
       # entirely — the HUD just shows this service's own container stats.
       - key: AGENT_TOKEN
         sync: false
+      # Whole-app password gate — any random string. Unset ⇒ app stays fully
+      # open to anyone with the URL (today's default). Set it and the
+      # frontend prompts once per browser, remembering it from then on.
+      - key: APP_PASSWORD
+        sync: false

@@ -11,6 +11,7 @@
  */
 
 import { audioBus } from './audioBus';
+import { authHeaders } from './appAuth';
 import type { AudioFrame } from '../utils/animations';
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
@@ -219,6 +220,7 @@ export async function transcribe(blob: Blob, signal?: AbortSignal): Promise<Tran
     headers: {
       'Content-Type': blob.type || 'application/octet-stream',
       'X-Filename': filenameFor(blob.type),
+      ...authHeaders(),
     },
     body: blob,
     signal,
@@ -309,7 +311,7 @@ export function speak(text: string, opts: SpeakOptions = {}): SpeakHandle {
     try {
       const res = await fetch(`${API_BASE}/api/speak`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ text, voice: opts.groqVoice }),
         signal: ac.signal,
       });

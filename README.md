@@ -109,7 +109,8 @@ frontend/                workspace "jarvis-frontend" — React + Vite + Tailwind
    │  ├─ voice.ts           MicRecorder + transcribe() + speak() (Groq → browser).
    │  ├─ wakeWord.ts        "Jarvis" wake listener (Web Speech API).
    │  ├─ audioBus.ts        Singleton per-frame energy channel (mic ⇄ TTS ⇄ visualiser).
-   │  └─ persist.ts         Namespaced, safe localStorage helpers.
+   │  ├─ persist.ts         Namespaced, safe localStorage helpers.
+   │  └─ appAuth.ts         Optional APP_PASSWORD gate — header for fetch, ?pw= for EventSource.
    ├─ utils/
    │  └─ animations.ts      Centralised Anime.js factory — the ONLY file that
    │                        imports animejs for motion logic. Ring rotations,
@@ -134,7 +135,8 @@ frontend/                workspace "jarvis-frontend" — React + Vite + Tailwind
    │  ├─ TranscriptPanel.tsx     Full history · copy / download .md / clear.
    │  ├─ TelemetryPanel.tsx      Expanded systems screen — gauges, session timing,
    │  │                          provider readiness, STT/TTS status.
-   │  └─ SettingsPanel.tsx       Provider / voice customisation.
+   │  ├─ SettingsPanel.tsx       Provider / voice customisation.
+   │  └─ AuthGate.tsx            Optional password screen — gates <App/> entirely.
    └─ App.tsx                    HUD shell — composition + boot sweep only.
 ```
 
@@ -260,6 +262,28 @@ Stop the agent (or let your machine go offline) and it falls back to the
 backend's own container stats within ~5s — the HUD never goes stale or wrong,
 it just quietly reverts. `AGENT_TOKEN` unset on the server disables the
 relay endpoint entirely (`501`), so this is opt-in by default.
+
+### Access control (optional)
+
+By default the deployed app is fully open — anyone with the URL can chat
+(burning your provider quota), and see your telemetry if the agent above is
+running. `APP_PASSWORD` locks the whole thing down:
+
+1. Set `APP_PASSWORD` (any random string) on the deployed backend, the same
+   way as `AGENT_TOKEN` above.
+2. That's it. The frontend needs no config — it auto-detects whether the
+   backend requires a password (one unauthenticated health check) and only
+   shows a prompt if it does.
+
+First visit on a device shows a single password screen; correct password
+unlocks everything (chat, voice, telemetry — every route but the agent
+relay, which already has its own separate `AGENT_TOKEN`) and is remembered
+on that browser from then on (`localStorage`) — no re-prompting on reload.
+Wrong password shows an inline error and stays locked. Unset `APP_PASSWORD`
+= no gate at all, exactly today's behavior; this is fully opt-in.
+
+To force a device to re-prompt (e.g. after rotating the password), clear
+that browser's site data for the app, or open it in a private window.
 
 ## Not yet built
 
