@@ -1,0 +1,28 @@
+{
+  "name": "jarvis",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "J.A.R.V.I.S. — real-time conversational voice & text AI assistant with a Stark-Expo HUD, motion driven exclusively by Anime.js.",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n web,api -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
+    "dev:secure": "concurrently -k -n web,api -c cyan,magenta \"npm:dev:web:secure\" \"npm:dev:api\"",
+    "dev:web": "npm --workspace frontend run dev",
+    "dev:web:secure": "npm --workspace frontend run dev:secure",
+    "dev:api": "npm --workspace backend run dev",
+    "build": "npm --workspace frontend run build",
+    "preview": "npm --workspace frontend run preview",
+    "typecheck": "npm --workspace frontend run typecheck",
+    "start": "npm --workspace backend run start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

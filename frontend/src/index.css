@@ -1,0 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+/* Mobile nav drawer — plain CSS to dodge Tailwind's arbitrary-translate
+   source-order trap when toggling between two translate utilities. */
+/* open state is applied as an inline style from App (transform: translateX(0)) */
+@media (max-width: 767.98px) {
+  .nav-drawer {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    padding: 1rem;
+    transform: translateX(-110%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: #020813;
+  color: #cfefff;
+  font-family: 'Rajdhani', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+@layer components {
+  /* Dark futuristic glass panel with neon corner-cut border */
+  .hud-panel {
+    @apply relative border border-arc-cyan/30 bg-slate-950/40 backdrop-blur-lg shadow-hud;
+    clip-path: polygon(
+      0 14px,
+      14px 0,
+      calc(100% - 14px) 0,
+      100% 14px,
+      100% calc(100% - 14px),
+      calc(100% - 14px) 100%,
+      14px 100%,
+      0 calc(100% - 14px)
+    );
+  }
+
+  .hud-panel::before,
+  .hud-panel::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: theme('colors.arc.cyan');
+    pointer-events: none;
+  }
+
+  .hud-panel::before {
+    top: 6px;
+    left: 6px;
+    border-top: 1px solid;
+    border-left: 1px solid;
+  }
+
+  .hud-panel::after {
+    bottom: 6px;
+    right: 6px;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+  }
+
+  .hud-label {
+    @apply text-[10px] uppercase tracking-[0.28em] text-arc-cyan/70;
+  }
+
+  .hud-value {
+    @apply font-mono text-arc-cyan drop-shadow-glow;
+  }
+}
+
+/* Custom scrollbar for the chat overlay */
+.hud-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.hud-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 240, 255, 0.05);
+}
+.hud-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.25);
+  border-radius: 9999px;
+}
+.hud-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 240, 255, 0.25) rgba(0, 240, 255, 0.05);
+}

@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: jarvis-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
+      - key: GROQ_STT_MODEL
+        value: whisper-large-v3-turbo
+      - key: GROQ_TTS_ENABLED
+        value: "0"
+      - key: GROQ_TTS_MODEL
+        value: canopylabs/orpheus-v1-english
+      - key: GROQ_TTS_VOICE
+        value: tara
+      - key: DEFAULT_PROVIDER
+        value: groq
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openrouter/auto
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      # The deployed frontend's origin(s), comma-separated — e.g.
+      # https://jarvis.vercel.app. Leave unset only for a quick smoke test;
+      # an empty CORS_ORIGIN reflects any origin.
+      - key: CORS_ORIGIN
+        sync: false
