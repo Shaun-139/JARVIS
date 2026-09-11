@@ -15,9 +15,9 @@
  */
 
 import express from 'express';
-import os from 'node:os';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createHostSampler } from './lib/metrics.mjs';
 
 /* --------------------------- tiny .env loader --------------------------- */
 for (const file of ['.env.local', '.env']) {
@@ -126,67 +126,30 @@ const MOCK_REPLIES = [
 ];
 
 /* --------------------------- host metrics sampler --------------------- */
-// The browser can't read host CPU/RAM; this process can. Sample once every
-// ~1.5 s into `hostMetrics`, and every /api/metrics SSE client just relays it.
-const round1 = (n) => Math.round(n * 10) / 10;
-const clamp01hundred = (n) => Math.max(0, Math.min(100, n));
+// The browser can't read host CPU/RAM; this process can. Sample this
+// container's own stats once every ~1.5 s into `hostMetrics` — the fallback
+// whenever no personal-machine agent (see below) is currently phoning in.
+const sampleHost = createHostSampler();
+let hostMetrics = sampleHost();
+setInterval(() => {
+  hostMetrics = sampleHost();
+}, 1500).unref();
 
-let cpuTimesPrev = os.cpus().map((c) => c.times);
-let procCpuPrev = process.cpuUsage();
-let procCpuPrevT = Date.now();
-let hostMetrics = {
-  cpu: 0, // whole-machine CPU utilisation, %
-  ram: 0, // whole-machine memory in use, %
-  ramUsedGb: 0,
-  ramTotalGb: round1(os.totalmem() / 1e9),
-  procMb: 0, // this proxy's resident memory, MB
-  procCpu: 0, // this proxy's CPU, % of one core (can exceed 100 on many cores)
-  cores: os.cpus().length,
-  uptimeS: 0,
-  ts: Date.now(),
-};
+/* ------------------- personal-machine telemetry relay ------------------ */
+// backend/agent.mjs, run on your own machine, POSTs its real CPU/RAM here so
+// the deployed HUD can show YOUR PC instead of just this container. Falls
+// back to `hostMetrics` above whenever the agent hasn't checked in recently.
+const AGENT_TOKEN = process.env.AGENT_TOKEN || '';
+const PERSONAL_STALE_MS = 5000; // a couple of missed 1.5s beats' grace
+let personalMetrics = null;
+let personalMetricsAt = 0;
 
-function sampleHostMetrics() {
-  const cpus = os.cpus();
-  let idle = 0;
-  let total = 0;
-  for (let i = 0; i < cpus.length; i++) {
-    const now = cpus[i].times;
-    const prev = cpuTimesPrev[i] ?? now;
-    const dIdle = now.idle - prev.idle;
-    const dBusy =
-      now.user - prev.user + (now.nice - prev.nice) + (now.sys - prev.sys) + (now.irq - prev.irq);
-    idle += dIdle;
-    total += dIdle + dBusy;
+function currentHostMetrics() {
+  if (personalMetrics && Date.now() - personalMetricsAt < PERSONAL_STALE_MS) {
+    return { ...personalMetrics, source: 'personal' };
   }
-  cpuTimesPrev = cpus.map((c) => c.times);
-  const cpu = total > 0 ? (1 - idle / total) * 100 : hostMetrics.cpu;
-
-  const ramUsed = os.totalmem() - os.freemem();
-  const ram = (ramUsed / os.totalmem()) * 100;
-
-  const nowT = Date.now();
-  const pu = process.cpuUsage(procCpuPrev); // µs of CPU since last sample
-  const dtMs = nowT - procCpuPrevT || 1;
-  procCpuPrev = process.cpuUsage();
-  procCpuPrevT = nowT;
-  const procCpu = ((pu.user + pu.system) / 1000 / dtMs) * 100;
-
-  hostMetrics = {
-    cpu: round1(clamp01hundred(cpu)),
-    ram: round1(clamp01hundred(ram)),
-    ramUsedGb: round1(ramUsed / 1e9),
-    ramTotalGb: round1(os.totalmem() / 1e9),
-    procMb: Math.round(process.memoryUsage().rss / 1048576),
-    procCpu: round1(Math.max(0, procCpu)),
-    cores: cpus.length,
-    uptimeS: Math.round(process.uptime()),
-    ts: nowT,
-  };
+  return { ...hostMetrics, source: 'server' };
 }
-
-sampleHostMetrics();
-setInterval(sampleHostMetrics, 1500).unref();
 
 /* -------------------------------- app --------------------------------- */
 const app = express();
@@ -230,8 +193,37 @@ app.get('/api/health', (_req, res) => {
     stt: GROQ_LIVE ? GROQ_STT_MODEL : 'mock',
     tts: GROQ_LIVE && TTS_ENABLED ? GROQ_TTS_MODEL : 'browser',
     defaultSystem: SYSTEM_PROMPT,
-    host: hostMetrics,
+    host: currentHostMetrics(),
   });
+});
+
+/**
+ * Personal-machine telemetry relay — backend/agent.mjs posts here. Requires
+ * AGENT_TOKEN to be set on this server; without it the endpoint just refuses
+ * everything, since there'd be no way to tell a real agent from anyone else.
+ */
+app.post('/api/host-metrics', jsonBody, (req, res) => {
+  if (!AGENT_TOKEN) {
+    res.status(501).json({ error: 'AGENT_TOKEN is not configured on this server' });
+    return;
+  }
+  if (req.get('x-agent-token') !== AGENT_TOKEN) {
+    res.status(401).json({ error: 'bad or missing X-Agent-Token' });
+    return;
+  }
+  const b = req.body ?? {};
+  personalMetrics = {
+    cpu: Number(b.cpu) || 0,
+    ram: Number(b.ram) || 0,
+    ramUsedGb: Number(b.ramUsedGb) || 0,
+    ramTotalGb: Number(b.ramTotalGb) || 0,
+    procMb: Number(b.procMb) || 0,
+    procCpu: Number(b.procCpu) || 0,
+    cores: Number(b.cores) || 0,
+    uptimeS: Number(b.uptimeS) || 0,
+  };
+  personalMetricsAt = Date.now();
+  res.json({ ok: true });
 });
 
 /* Available model ids per configured provider (60 s cache). */
@@ -281,8 +273,8 @@ app.get('/api/models', async (_req, res) => {
 /* Live host CPU / RAM — one SSE frame per sample. */
 app.get('/api/metrics', (req, res) => {
   const sse = openSSE(res);
-  sse.send(hostMetrics);
-  const id = setInterval(() => sse.send(hostMetrics), 1500);
+  sse.send(currentHostMetrics());
+  const id = setInterval(() => sse.send(currentHostMetrics()), 1500);
   res.on('close', () => clearInterval(id));
 });
 

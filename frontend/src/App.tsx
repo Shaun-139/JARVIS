@@ -271,6 +271,7 @@ export default function App() {
             <TelemetryDashboard
               sample={telemetry}
               hostConnected={hostConnected}
+              hostSource={host?.source}
               pressure={pressure}
             />
             <div className="ml-auto flex items-start gap-3">

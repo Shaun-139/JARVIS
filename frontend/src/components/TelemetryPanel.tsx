@@ -83,7 +83,11 @@ export default function TelemetryPanel({
             hostConnected ? 'text-emerald-300/70' : 'text-amber-300/60'
           }`}
         >
-          {hostConnected ? 'all readings live' : 'cpu·ram sim — host stream down'}
+          {!hostConnected
+            ? 'cpu·ram sim — host stream down'
+            : host?.source === 'personal'
+              ? 'all readings live · your machine'
+              : 'all readings live · server'}
         </span>
       </div>
 
@@ -106,10 +110,14 @@ export default function TelemetryPanel({
       {host && (
         <div className="tel-block opacity-0">
           <span className="hud-label mb-1 block">Host</span>
+          {stat('Source', host.source === 'personal' ? 'Your machine' : 'Render container')}
           {stat('CPU cores', String(host.cores))}
           {stat('Memory', `${host.ramUsedGb} / ${host.ramTotalGb} GB`)}
-          {stat('Proxy process', `${host.procMb} MB · ${host.procCpu}% cpu`)}
-          {stat('Proxy uptime', uptime(host.uptimeS))}
+          {stat(
+            host.source === 'personal' ? 'Agent process' : 'Proxy process',
+            `${host.procMb} MB · ${host.procCpu}% cpu`,
+          )}
+          {stat(host.source === 'personal' ? 'Agent uptime' : 'Proxy uptime', uptime(host.uptimeS))}
           <div className="flex items-center justify-between py-1.5">
             <span className="hud-label">CPU pressure</span>
             {pressure ? (

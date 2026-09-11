@@ -34,3 +34,9 @@ services:
       # an empty CORS_ORIGIN reflects any origin.
       - key: CORS_ORIGIN
         sync: false
+      # Shared secret for backend/agent.mjs (run on your own machine) to
+      # authenticate its telemetry posts. Any random string; must match the
+      # AGENT_TOKEN the agent is run with. Leave unset to disable the relay
+      # entirely — the HUD just shows this service's own container stats.
+      - key: AGENT_TOKEN
+        sync: false

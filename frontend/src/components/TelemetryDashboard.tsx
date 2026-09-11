@@ -38,6 +38,8 @@ export interface TelemetryDashboardProps {
   sample: TelemetrySample;
   /** Real host CPU/RAM stream is connected. */
   hostConnected?: boolean;
+  /** 'personal' when a telemetry agent is relaying your own machine's stats. */
+  hostSource?: 'personal' | 'server';
   /** Compute Pressure API state, if the browser supports it. */
   pressure?: PressureState | null;
 }
@@ -45,6 +47,7 @@ export interface TelemetryDashboardProps {
 export default function TelemetryDashboard({
   sample,
   hostConnected,
+  hostSource,
   pressure,
 }: TelemetryDashboardProps) {
   return (
@@ -63,7 +66,7 @@ export default function TelemetryDashboard({
                   : 'bg-amber-400/60'
               }`}
             />
-            {hostConnected ? 'host · live' : 'host · sim'}
+            {!hostConnected ? 'host · sim' : hostSource === 'personal' ? 'host · you' : 'host · live'}
           </span>
           {pressure && (
             <span

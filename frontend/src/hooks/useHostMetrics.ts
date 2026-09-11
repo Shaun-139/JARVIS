@@ -21,6 +21,9 @@ export interface HostMetrics {
   cores: number;
   uptimeS: number;
   ts: number;
+  /** 'personal' when backend/agent.mjs is actively relaying your own machine's
+   *  stats; 'server' when falling back to the proxy's own host. */
+  source?: 'personal' | 'server';
 }
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';

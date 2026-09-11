@@ -20,7 +20,8 @@
     "build": "npm --workspace frontend run build",
     "preview": "npm --workspace frontend run preview",
     "typecheck": "npm --workspace frontend run typecheck",
-    "start": "npm --workspace backend run start"
+    "start": "npm --workspace backend run start",
+    "agent": "npm --workspace backend run agent"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

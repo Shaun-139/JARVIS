@@ -94,6 +94,9 @@ Two npm workspaces under the repo root:
 ```
 backend/                 workspace "jarvis-backend" — dep: express
 ├─ index.mjs             Express SSE proxy — providers, keys server-side, mock fallback.
+├─ agent.mjs             Optional: run on your own machine, pushes its host stats
+│                        to the deployed proxy (see Personal-machine telemetry).
+├─ lib/metrics.mjs        Host CPU/RAM sampler — shared by index.mjs and agent.mjs.
 └─ .env.local            provider keys / models / API_PORT (git-ignored)
 
 frontend/                workspace "jarvis-frontend" — React + Vite + Tailwind + Anime.js
@@ -164,6 +167,13 @@ double-invoke can never leave an element frozen mid-tween.
 The Telemetry view also shows per-turn token split (in/out), last-response time,
 host RAM used/total, and the proxy process's own footprint.
 
+**Whose host?** By default, CPU/RAM are *whatever machine runs the backend* —
+your laptop locally, or the hosting container once deployed (see
+[Personal-machine telemetry](#personal-machine-telemetry-optional) below to
+show your own machine's stats instead, even from the deployed app). The strip
+shows `host · live` (the backend's own host), `host · you` (your machine, via
+the agent), or `host · sim` (stream disconnected, synthetic fallback).
+
 ## Persistence
 
 `src/lib/persist.ts` — namespaced (`jarvis:v1:`), every access wrapped so a
@@ -222,6 +232,34 @@ origin, which works but is wide open. `CORS_ORIGIN` accepts a comma-separated
 list if you also want e.g. a custom domain to work.
 
 Both platforms redeploy automatically on every push to the branch you connect.
+
+### Personal-machine telemetry (optional)
+
+The deployed backend's CPU/RAM readings describe whatever container it runs
+on (Render's), not your PC — the browser has no API to read that itself, and
+there's no way around it short of exposing something on your own network.
+`backend/agent.mjs` closes that gap the safe way: it runs **on your machine**
+and pushes its own stats **out** to the deployed backend every ~1.5s (no
+inbound port-forwarding, no tunnel).
+
+1. Pick any random string as a shared secret, and set it as `AGENT_TOKEN` on
+   the Render service (Environment tab) — this is what stops anyone else from
+   posting fake readings to your public endpoint.
+2. Add the same value, plus `AGENT_TARGET_URL` (your Render URL), to
+   `backend/.env.local`:
+   ```
+   AGENT_TOKEN=<the same random string>
+   AGENT_TARGET_URL=https://jarvis-backend.onrender.com
+   ```
+3. Run it: `npm run agent` (from the repo root or `backend/`).
+
+While it's running, the deployed HUD's telemetry strip switches from
+`host · live` to `host · you`, and the Telemetry view's Host block relabels
+"Proxy process/uptime" to "Agent process/uptime" and adds a `Source` row.
+Stop the agent (or let your machine go offline) and it falls back to the
+backend's own container stats within ~5s — the HUD never goes stale or wrong,
+it just quietly reverts. `AGENT_TOKEN` unset on the server disables the
+relay endpoint entirely (`501`), so this is opt-in by default.
 
 ## Not yet built
 
