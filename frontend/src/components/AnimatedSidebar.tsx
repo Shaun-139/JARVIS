@@ -6,9 +6,9 @@
 import { useEffect, useRef } from 'react';
 import anime from 'animejs';
 import {
-  History,
   LayoutDashboard,
   Mic,
+  MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
   Settings2,
@@ -30,7 +30,7 @@ export interface AnimatedSidebarProps {
 
 const ITEMS: { id: SidebarView; label: string; Icon: typeof Mic }[] = [
   { id: 'session', label: 'Live Session', Icon: Mic },
-  { id: 'history', label: 'Transcript', Icon: History },
+  { id: 'history', label: 'Chats', Icon: MessageSquare },
   { id: 'telemetry', label: 'Telemetry', Icon: LayoutDashboard },
   { id: 'settings', label: 'Settings', Icon: Settings2 },
 ];

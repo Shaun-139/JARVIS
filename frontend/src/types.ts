@@ -45,6 +45,15 @@ export interface ChatMessageModel {
   streaming?: boolean;
 }
 
+/** One saved conversation in the Chats list — messages live separately, keyed by id. */
+export interface ChatSummary {
+  id: string;
+  /** Auto-derived from the first message; editable later if that's ever added. */
+  title: string;
+  /** Epoch ms — drives the Chats list ordering and its relative-time label. */
+  updatedAt: number;
+}
+
 /** Live telemetry sample rendered by the circular gauges. */
 export interface TelemetrySample {
   /** 0..100 */

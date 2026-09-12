@@ -32,7 +32,7 @@ import SettingsPanel, {
   toSpeechRate,
   type VoiceSettings,
 } from './components/SettingsPanel';
-import TranscriptPanel from './components/TranscriptPanel';
+import ChatsPanel from './components/ChatsPanel';
 import TelemetryPanel from './components/TelemetryPanel';
 import HelpOverlay from './components/HelpOverlay';
 
@@ -206,7 +206,7 @@ export default function App({ skipBootSweep = false }: AppProps = {}) {
       { combo: 'mod+b', label: 'Toggle sidebar', run: () => setCollapsed((c) => !c) },
       { combo: 'mod+backspace', label: 'Clear channel', run: () => convo.clear() },
       { combo: '1', label: 'Live Session', run: () => setView('session') },
-      { combo: '2', label: 'Transcript', run: () => setView('history') },
+      { combo: '2', label: 'Chats', run: () => setView('history') },
       { combo: '3', label: 'Telemetry', run: () => setView('telemetry') },
       { combo: '4', label: 'Settings', run: () => setView('settings') },
       { combo: '?', label: 'This help', run: () => setHelpOpen((o) => !o) },
@@ -394,10 +394,18 @@ export default function App({ skipBootSweep = false }: AppProps = {}) {
                   defaultPersona={convo.defaultSystem}
                 />
               ) : view === 'history' ? (
-                <TranscriptPanel
-                  messages={convo.messages}
-                  turns={convo.stats.turns}
-                  onClear={convo.clear}
+                <ChatsPanel
+                  chats={convo.chats}
+                  activeChatId={convo.activeChatId}
+                  onSelect={(id) => {
+                    convo.switchChat(id);
+                    setView('session');
+                  }}
+                  onNew={() => {
+                    convo.newChat();
+                    setView('session');
+                  }}
+                  onDelete={convo.deleteChat}
                 />
               ) : view === 'telemetry' ? (
                 <TelemetryPanel

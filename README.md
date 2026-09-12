@@ -132,11 +132,13 @@ frontend/                workspace "jarvis-frontend" — React + Vite + Tailwind
    │  ├─ ChatMessage.tsx         Staggered bubble entry + streaming caret.
    │  ├─ MessageList.tsx         Scroll overlay; only the new batch staggers.
    │  ├─ AnimatedSidebar.tsx     Collapsible rail — switches the right-hand panel.
-   │  ├─ TranscriptPanel.tsx     Full history · copy / download .md / clear.
+   │  ├─ ChatsPanel.tsx          Saved-conversations list — switch / new / delete.
    │  ├─ TelemetryPanel.tsx      Expanded systems screen — gauges, session timing,
    │  │                          provider readiness, STT/TTS status.
    │  ├─ SettingsPanel.tsx       Provider / voice customisation.
-   │  └─ AuthGate.tsx            Optional password screen — gates <App/> entirely.
+   │  ├─ AuthGate.tsx            Optional password screen — gates <App/> entirely.
+   │  ├─ LockScreen.tsx          The password form itself, split out of AuthGate.
+   │  └─ BootSplash.tsx          Reactor-landing reveal, played on a fresh unlock.
    └─ App.tsx                    HUD shell — composition + boot sweep only.
 ```
 
@@ -182,9 +184,17 @@ the agent), or `host · sim` (stream disconnected, synthetic fallback).
 private window / full quota / disabled storage just yields the fallback.
 
 - **Settings** + **UI** (collapsed rail, active panel) save on change, restore on load.
-- **Conversation** + session token/turn totals save once each turn settles
-  (never mid-stream) plus on `beforeunload`; last 150 messages kept. Restored
-  bubbles render without the entry animation. "clear" wipes them.
+- **Chats** — every conversation is saved separately (not just the current
+  one), each under its own key, with a lightweight list (id / title /
+  updated-at) driving the Chats view. Title auto-derives from the opening
+  message, ChatGPT/Claude-style. Save-per-chat happens once each turn settles
+  (never mid-stream) plus on `beforeunload`; last 150 messages kept per chat.
+  Restored bubbles render without the entry animation. "clear" empties the
+  active chat back to "New chat" without deleting it; deleting a chat removes
+  it outright. A one-time migration folds any pre-Chats single conversation
+  into the first chat.
+- Session token/turn totals save the same way, but app-wide — they don't
+  reset when you switch or clear a chat.
 - Per-turn timing (`ttftMs` / `totalMs`) is deliberately not restored.
 
 ## Settings

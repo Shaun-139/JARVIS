@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ChatMessageModel } from '../types';
+import type { ChatMessageModel, ChatSummary } from '../types';
 import type { VoiceStateApi } from './useVoiceState';
 import {
   getHealth,
@@ -26,15 +26,74 @@ import {
 } from '../lib/chatClient';
 import { MicRecorder, transcribe, createSpeechQueue, type SpeechQueue } from '../lib/voice';
 import { WakeListener, type WakeEvent } from '../lib/wakeWord';
-import { load, save } from '../lib/persist';
+import { load, save, remove } from '../lib/persist';
 
-const CONVO_KEY = 'conversation';
+/** Pre-multi-chat single-conversation key — read once to migrate, never written again. */
+const LEGACY_CONVO_KEY = 'conversation';
 const STATS_KEY = 'stats';
-/** Most recent messages kept in localStorage. */
+const CHAT_LIST_KEY = 'chatList';
+const ACTIVE_CHAT_KEY = 'activeChatId';
+const chatMessagesKey = (id: string) => `chatMessages:${id}`;
+/** Most recent messages kept in localStorage, per chat. */
 const PERSIST_LIMIT = 150;
 
 let uid = 0;
 const nextId = () => `m${Date.now().toString(36)}-${(uid++).toString(36)}`;
+const nextChatId = () => `c${Date.now().toString(36)}-${(uid++).toString(36)}`;
+
+const DEFAULT_TITLE = 'New chat';
+
+/** First ~42 chars of the opening message, ChatGPT/Claude-style. */
+function titleFrom(text: string): string {
+  const t = text.trim().replace(/\s+/g, ' ');
+  if (!t) return DEFAULT_TITLE;
+  return t.length > 42 ? `${t.slice(0, 42).trimEnd()}…` : t;
+}
+
+function loadChatMessages(id: string): ChatMessageModel[] {
+  return load<ChatMessageModel[]>(chatMessagesKey(id), []).map((m) => ({
+    ...m,
+    streaming: false,
+  }));
+}
+
+function saveChatMessages(id: string, messages: ChatMessageModel[]): void {
+  save(
+    chatMessagesKey(id),
+    messages.slice(-PERSIST_LIMIT).map(({ streaming: _s, ...m }) => m),
+  );
+}
+
+/** Resolve the chat list + active chat once at mount, migrating any pre-Chats data. */
+function initChats(): { chats: ChatSummary[]; activeId: string } {
+  let chats = load<ChatSummary[]>(CHAT_LIST_KEY, []);
+  let activeId = load<string>(ACTIVE_CHAT_KEY, '');
+
+  if (chats.length === 0) {
+    const legacy = load<ChatMessageModel[]>(LEGACY_CONVO_KEY, []);
+    if (legacy.length > 0) {
+      const id = nextChatId();
+      const firstUser = legacy.find((m) => m.role === 'user');
+      chats = [
+        { id, title: firstUser ? titleFrom(firstUser.content) : DEFAULT_TITLE, updatedAt: Date.now() },
+      ];
+      saveChatMessages(id, legacy);
+      activeId = id;
+    }
+  }
+
+  if (!activeId || !chats.some((c) => c.id === activeId)) {
+    activeId = chats[0]?.id ?? '';
+  }
+
+  if (!activeId) {
+    const id = nextChatId();
+    chats = [{ id, title: DEFAULT_TITLE, updatedAt: Date.now() }];
+    activeId = id;
+  }
+
+  return { chats, activeId };
+}
 
 const MOCK_PROMPT = 'Give me a quick system status check.';
 
@@ -114,6 +173,15 @@ const EMPTY_STATS: TurnStats = {
 
 export interface ConversationEngine {
   messages: ChatMessageModel[];
+  /** All saved chats, newest-activity first is the UI's job — order here is insertion order. */
+  chats: ChatSummary[];
+  activeChatId: string;
+  /** Start a fresh chat and switch to it. */
+  newChat: () => void;
+  /** Flush the current chat and load another. No-op mid-turn. */
+  switchChat: (id: string) => void;
+  /** Remove a chat permanently. Switches away first if it's the active one. */
+  deleteChat: (id: string) => void;
   busy: boolean;
   listening: boolean;
   speaking: boolean;
@@ -156,11 +224,22 @@ export function useConversationEngine(
   voice: VoiceStateApi,
   opts: EngineOptions = {},
 ): ConversationEngine {
+  // Resolved once, lazily, so the (slightly involved — migration, fallback
+  // creation) init logic runs exactly once regardless of how many pieces of
+  // state below seed themselves from it.
+  const initRef = useRef<{ chats: ChatSummary[]; activeId: string } | null>(null);
+  if (!initRef.current) initRef.current = initChats();
+  const init = initRef.current;
+
+  const [chats, setChats] = useState<ChatSummary[]>(init.chats);
+  const [activeChatId, setActiveChatId] = useState<string>(init.activeId);
   const [messages, setMessages] = useState<ChatMessageModel[]>(() =>
-    load<ChatMessageModel[]>(CONVO_KEY, []).map((m) => ({ ...m, streaming: false })),
+    loadChatMessages(init.activeId),
   );
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const activeChatIdRef = useRef(activeChatId);
+  activeChatIdRef.current = activeChatId;
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -224,31 +303,33 @@ export function useConversationEngine(
     };
   }, [clearTimers]);
 
-  // Persist the transcript + running totals once each turn settles (skipping the
-  // per-token churn while a reply streams). `beforeunload` catches a mid-turn reload.
+  // Persist the active chat's messages + running totals once each turn settles
+  // (skipping the per-token churn while a reply streams). `beforeunload` catches
+  // a mid-turn reload.
   useEffect(() => {
     if (busy || listening) return;
-    save(
-      CONVO_KEY,
-      messages.slice(-PERSIST_LIMIT).map(({ streaming: _s, ...m }) => m),
-    );
+    saveChatMessages(activeChatId, messages);
     save(STATS_KEY, {
       turns: stats.turns,
       sessionTokens: stats.sessionTokens,
       lastPromptTokens: stats.lastPromptTokens,
       lastCompletionTokens: stats.lastCompletionTokens,
     });
-  }, [messages, stats, busy, listening]);
+  }, [messages, stats, busy, listening, activeChatId]);
 
   useEffect(() => {
-    const flush = () =>
-      save(
-        CONVO_KEY,
-        messagesRef.current.slice(-PERSIST_LIMIT).map(({ streaming: _s, ...m }) => m),
-      );
+    const flush = () => saveChatMessages(activeChatIdRef.current, messagesRef.current);
     window.addEventListener('beforeunload', flush);
     return () => window.removeEventListener('beforeunload', flush);
   }, []);
+
+  // The chat list itself (titles, ordering timestamps) and which chat is active.
+  useEffect(() => {
+    save(CHAT_LIST_KEY, chats);
+  }, [chats]);
+  useEffect(() => {
+    save(ACTIVE_CHAT_KEY, activeChatId);
+  }, [activeChatId]);
 
   const patchMessage = useCallback((id: string, patch: Partial<ChatMessageModel>) => {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
@@ -370,11 +451,22 @@ export function useConversationEngine(
   const appendAndRun = useCallback(
     (content: string) => {
       const userMsg: ChatMessageModel = { id: nextId(), role: 'user', content, ts: Date.now() };
+      const isFirstMessage = messagesRef.current.length === 0;
       setMessages((prev) => {
         const history = [...prev, userMsg];
         runAssistantTurn(history);
         return history;
       });
+      // Auto-title from the opening message, ChatGPT/Claude-style; otherwise
+      // just bump updatedAt so the Chats list re-sorts to the top.
+      const chatId = activeChatIdRef.current;
+      setChats((cs) =>
+        cs.map((c) =>
+          c.id === chatId
+            ? { ...c, title: isFirstMessage ? titleFrom(content) : c.title, updatedAt: Date.now() }
+            : c,
+        ),
+      );
     },
     [runAssistantTurn],
   );
@@ -558,10 +650,71 @@ export function useConversationEngine(
     setError(null);
     setMessages([]); // the persist effect writes the empty state straight through
     setStats(EMPTY_STATS);
+    const chatId = activeChatIdRef.current;
+    setChats((cs) =>
+      cs.map((c) => (c.id === chatId ? { ...c, title: DEFAULT_TITLE, updatedAt: Date.now() } : c)),
+    );
     voice.setState('IDLE');
   }, [clearTimers, stopSpeech, voice]);
 
   const dismissError = useCallback(() => setError(null), []);
+
+  /* --------------------------------- chats ---------------------------------- */
+
+  const newChat = useCallback(() => {
+    if (busy || listening) return;
+    clearTimers();
+    abortRef.current?.abort();
+    abortRef.current = null;
+    stopSpeech();
+    streamingIdRef.current = null;
+    setError(null);
+    const id = nextChatId();
+    setChats((cs) => [...cs, { id, title: DEFAULT_TITLE, updatedAt: Date.now() }]);
+    setActiveChatId(id);
+    setMessages([]);
+    voice.setState('IDLE');
+  }, [busy, listening, clearTimers, stopSpeech, voice]);
+
+  const switchChat = useCallback(
+    (id: string) => {
+      if (id === activeChatId || busy || listening) return;
+      clearTimers();
+      abortRef.current?.abort();
+      abortRef.current = null;
+      stopSpeech();
+      streamingIdRef.current = null;
+      setError(null);
+      setActiveChatId(id);
+      setMessages(loadChatMessages(id));
+      voice.setState('IDLE');
+    },
+    [activeChatId, busy, listening, clearTimers, stopSpeech, voice],
+  );
+
+  const deleteChat = useCallback(
+    (id: string) => {
+      if (id === activeChatId && (busy || listening)) return;
+      setChats((prev) => {
+        const remaining = prev.filter((c) => c.id !== id);
+        if (id !== activeChatId) return remaining;
+        // Deleting the active chat — switch to the next most-recent, or spin
+        // up a fresh one so there's always at least one chat to land on.
+        if (remaining.length > 0) {
+          const next = [...remaining].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+          setActiveChatId(next.id);
+          setMessages(loadChatMessages(next.id));
+          return remaining;
+        }
+        const freshId = nextChatId();
+        setActiveChatId(freshId);
+        setMessages([]);
+        return [{ id: freshId, title: DEFAULT_TITLE, updatedAt: Date.now() }];
+      });
+      remove(chatMessagesKey(id));
+    },
+    [activeChatId, busy, listening],
+  );
 
   const regenerateLast = useCallback(() => {
     if (busy) return;
@@ -591,6 +744,11 @@ export function useConversationEngine(
 
   return {
     messages,
+    chats,
+    activeChatId,
+    newChat,
+    switchChat,
+    deleteChat,
     busy,
     listening,
     speaking,
