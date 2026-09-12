@@ -34,7 +34,12 @@ body {
   color: #cfefff;
   font-family: 'Rajdhani', ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
+  /* No overflow:hidden here — the root div already handles it (Tailwind's
+     md:overflow-hidden, desktop-only). The mobile layout is deliberately
+     designed to scroll instead of clip (see App.tsx's root: min-h-[100dvh]
+     with no overflow-y cap below md); an unconditional overflow:hidden on
+     body silently blocked that scroll on every phone, hiding anything below
+     the fold — including the composer. */
 }
 
 @layer components {

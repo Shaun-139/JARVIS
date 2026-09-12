@@ -239,16 +239,20 @@ export default function App({ skipBootSweep = false }: AppProps = {}) {
         {voice.interrupted ? 'Interrupted' : voice.state.toLowerCase()}
       </div>
 
-      {/* Mobile drawer backdrop */}
-      {navOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/60 md:hidden"
-          onClick={() => setNavOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
       <div ref={shellRef} className="relative z-10 flex min-h-full w-full gap-4 p-4 lg:h-full">
+        {/* Mobile drawer backdrop — must be a sibling of .nav-drawer (both
+            inside shellRef), not a sibling of shellRef itself: shellRef's own
+            z-10 caps whatever nests inside it, so a backdrop placed *outside*
+            shellRef at a higher z-index (as this used to be) sat visually and
+            interactively above the whole drawer, swallowing every tap on it
+            regardless of the drawer's own (locally-higher, but trapped) z-index. */}
+        {navOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/60 md:hidden"
+            onClick={() => setNavOpen(false)}
+            aria-hidden="true"
+          />
+        )}
         <div
           className="nav-drawer"
           style={navOpen ? { transform: 'translateX(0)' } : undefined}
