@@ -1,63 +1,46 @@
 /**
- * AuthGate — the optional whole-app password gate. If the backend has no
- * APP_PASSWORD configured (or this browser already unlocked it before),
- * this is invisible: straight to <App/>, no splash. Otherwise it shows
- * LockScreen; on a *correct* password it mounts <App/> underneath and plays
- * BootSplash's reactor-landing animation as the reveal — a reward for the
- * moment you actually unlock it, not a wait tax on every load.
+ * AuthGate — the optional whole-app password gate, plus the boot reveal.
+ * Every load probes the backend once; if that succeeds (no password
+ * configured, or this browser's remembered one still checks out) it mounts
+ * <App/> and plays BootSplash's reactor-landing animation as the entrance —
+ * every time, not just the first unlock. Only a visitor who still needs to
+ * type the password sees LockScreen first; once they submit a correct one,
+ * the same reveal plays.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import App from '../App';
 import BootSplash from './BootSplash';
 import LockScreen from './LockScreen';
 import { getHealth } from '../lib/chatClient';
-import { getAppPassword } from '../lib/appAuth';
 
-type Status = 'checking' | 'locked' | 'unlocking' | 'unlocked';
+type Status = 'checking' | 'locked' | 'revealing' | 'unlocked';
 
 export default function AuthGate() {
-  const [status, setStatus] = useState<Status>(() => (getAppPassword() ? 'unlocked' : 'checking'));
-  const viaSplashRef = useRef(false);
+  const [status, setStatus] = useState<Status>('checking');
 
-  // Nothing stored yet — one unauthenticated probe tells us whether the
-  // server even requires a password before bothering the user with a prompt.
   useEffect(() => {
-    if (status !== 'checking') return;
     let alive = true;
     getHealth().then((h) => {
-      if (alive) setStatus(h ? 'unlocked' : 'locked');
+      if (alive) setStatus(h ? 'revealing' : 'locked');
     });
     return () => {
       alive = false;
     };
-  }, [status]);
+  }, []);
 
   if (status === 'checking') return null;
 
   if (status === 'locked') {
-    return (
-      <LockScreen
-        onUnlocked={() => {
-          viaSplashRef.current = true;
-          setStatus('unlocking');
-        }}
-      />
-    );
+    return <LockScreen onUnlocked={() => setStatus('revealing')} />;
   }
 
-  // 'unlocking' and (once BootSplash finishes) 'unlocked'-via-splash render
-  // the *same* <App skipBootSweep/> element across that transition, so it
-  // never remounts and never replays its own entrance sweep mid-reveal.
-  if (status === 'unlocking' || (status === 'unlocked' && viaSplashRef.current)) {
-    return (
-      <>
-        <App skipBootSweep />
-        {status === 'unlocking' && <BootSplash onDone={() => setStatus('unlocked')} />}
-      </>
-    );
-  }
-
-  // Returning visitor whose password was already stored — no splash shown.
-  return <App />;
+  // 'revealing' and 'unlocked' render the *same* <App skipBootSweep/>
+  // element, so it never remounts or replays its own entrance mid-reveal.
+  return (
+    <>
+      <App skipBootSweep />
+      {status === 'revealing' && <BootSplash onDone={() => setStatus('unlocked')} />}
+    </>
+  );
 }
