@@ -38,6 +38,8 @@ export interface VoiceVisualizerProps {
   interrupted: boolean;
   /** viewBox px. Default 420. */
   size?: number;
+  /** DOM id on the root — lets BootSplash locate and measure it to land on. */
+  id?: string;
 }
 
 const NODE_COUNT = 8;
@@ -49,6 +51,7 @@ export default function VoiceVisualizer({
   prevState,
   interrupted,
   size = 420,
+  id,
 }: VoiceVisualizerProps) {
   const rootRef = useRef<SVGSVGElement>(null);
   const haloRef = useRef<SVGGElement>(null);
@@ -216,6 +219,7 @@ export default function VoiceVisualizer({
 
   return (
     <div
+      id={id}
       className="relative flex aspect-square w-full items-center justify-center"
       style={{ maxWidth: size, maxHeight: size }}
       data-state={state}

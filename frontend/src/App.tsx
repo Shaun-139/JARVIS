@@ -57,7 +57,14 @@ const IS_MAC =
 const kbd = (key: string) => (IS_MAC ? `⌘${key}` : `Ctrl+${key}`);
 const CLEAR_KEYS = IS_MAC ? '⌘⌫' : 'Ctrl+Backspace';
 
-export default function App() {
+export interface AppProps {
+  /** True when BootSplash is about to land its reactor on this App's own —
+   *  skips App's own entrance sweep so the panels (and the reactor's
+   *  position) are stable and measurable from the very first frame. */
+  skipBootSweep?: boolean;
+}
+
+export default function App({ skipBootSweep = false }: AppProps = {}) {
   const voice = useVoiceState('IDLE');
   const synthTelemetry = useTelemetry(voice.state);
   const { metrics: host, connected: hostConnected } = useHostMetrics();
@@ -137,8 +144,9 @@ export default function App() {
     const panels = shellRef.current?.querySelectorAll('.hud-panel:not([data-boot-skip])');
     if (!panels || !panels.length) return;
 
-    if (bootedRef.current) {
+    if (bootedRef.current || skipBootSweep) {
       anime.set(panels, { opacity: 1, translateX: 0, translateY: 0, filter: 'blur(0px)' });
+      bootedRef.current = true;
       return;
     }
     bootedRef.current = true;
@@ -302,6 +310,7 @@ export default function App() {
               </div>
 
               <VoiceVisualizer
+                id="arc-reactor-dock"
                 state={voice.state}
                 prevState={voice.prevState}
                 interrupted={voice.interrupted}
